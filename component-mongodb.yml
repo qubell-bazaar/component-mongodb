@@ -1,0 +1,146 @@
+##Mongodb
+application:
+  configuration:
+    configuration.recipe-url: "https://s3.amazonaws.com/qubell-starter-kit-artifacts/qubell-bazaar/component-mongodb-cookbooks-stable-434d09c.tar.gz"
+    configuration.image: { ami: "us-east-1/ami-bf5021d6", user: "root" }
+    configuration.image-hardware: t1.micro
+    configuration.quantity: 1
+    configuration.user: "test"
+  interfaces:
+    configuration:
+      "*": "bind(workflow#input.*)"
+    mongo:
+      run-js: "bind(workflow#actions.run-js)"
+      url: "bind(workflow#result.url)"
+      hosts: "bind(workflow#result.hosts)"
+  components:
+    workflow:
+      type: workflow.Instance
+      interfaces:
+        input:
+          user:
+            type: configuration(string)
+            name: Mongo user
+          image:
+            type: configuration(map<string, string>)
+            name: Compatible AMI
+            suggestions:
+              "RHEL 6 (us-east)": { ami: "us-east-1/ami-bf5021d6", user: "root" }
+          image-hardware:
+            type: configuration(string)
+            name: Compatible hardware
+            suggestions:
+              "1 CPU, 0.6 Gb": t1.micro
+          recipe-url:   { type: configuration(string),       name: Cookbooks url      }
+          quantity: 
+            type: configuration(int)
+            suggestions:
+              "Standalone": 1
+              "ReplicaSet": 3
+        actions:
+          run-js: receive-command(string script_url)
+        result:
+          url: 
+            type: publish-signal(string)
+          hosts: 
+            type: publish-signal(list<string>)
+      configuration:
+        configuration.triggers:
+          input.recipe-url:            update
+        configuration.workflows:
+          update: &update
+            steps:
+              - provision:
+                  action: provisionVms
+                  parameters:
+                    hardwareId: "{$.image-hardware}"
+                    imageId: "{$.image.ami}"
+                    vmIdentity: "{$.image.user}"
+                    targetQuantity: "{$.quantity}"
+                    roleName: default
+                  output:
+                    hosts: ips
+                    nodes: privateips
+              - stop-firewall:
+                  action: execrun
+                  precedingPhases: [ provision ]
+                  parameters:
+                      roles: [ default ]
+                      command:
+                          - service iptables stop
+                          
+              - install-mongo: 
+                  action: "chefrun"
+                  precedingPhases: [ stop-firewall ]
+                  parameters:
+                    logLevel: debug
+                    isSolo: true
+                    version: "11.16.4-1"
+                    roles: [ default ]
+                    runList: [ "recipe[mongodb]"]
+                    recipeUrl: "{$.recipe-url}"
+                    
+              - configure-mongoset: ### Action "chefrun" downloads cookbooks archive by specified recipeUrl and run recipe descrbed in runList with provided attributes
+                  action: "chefrun"
+                  precedingPhases: [ install-mongo ]
+                  parameters:
+                    logLevel: debug
+                    isSolo: true
+                    version: "11.16.4-1"
+                    roles: [ default ]
+                    runList: [ "recipe[mongodb::replicaset]" ]
+                    recipeUrl: "{$.recipe-url}"
+                    jattrs:
+                      mongodb:
+                        ruby_gems: 
+                           "mongo": 1.12.0
+                           "bson_ext": 1.12.0
+                        cluster_name: "main"
+                        replicaset_nodes: "{$.nodes}"
+                        replicaset_hosts: "{$.hosts}"
+                        config:
+                          replSet: "rs0"
+              
+              - create-user: ### Action "chefrun" downloads cookbooks archive by specified recipeUrl and run recipe descrbed in runList with provided attributes
+                  action: "chefrun"
+                  precedingPhases: [ configure-mongoset ]
+                  parameters:
+                    logLevel: debug
+                    isSolo: true
+                    version: "11.16.4-1"
+                    roles: [ default ]
+                    runList: [ "recipe[mongodb::user_management]" ]
+                    recipeUrl: "{$.recipe-url}"
+                    jattrs:
+                      mongodb:
+                        users:
+                          - username: "{$.user}"
+                            password: "{$.user}"
+                            roles: ["dbAdmin", "dbOwner"]
+                            database: "{$.user}"
+                        replicaset_hosts: "{$.hosts}"
+                  output:
+                    chefAttrs: chefState
+            return:
+              url:
+                value: "{$.chefAttrs['*'][0].cookbook_qubell_mongodb.url}"
+              hosts:
+                value: "{$.hosts}"
+
+          launch: *update
+          
+          run-js:
+            steps:
+              - run-js:
+                  action: "chefrun"
+                  phase: "run-js"
+                  parameters:
+                    isSolo: true
+                    roles: [default]
+                    runList: ["recipe[mongodb::run_js]"]
+                    recipeUrl: "{$.recipe-url}"
+                    jattrs:
+                      cookbook_qubell_mongodb:
+                        script_url: "{$.script_url}"
+
+  
