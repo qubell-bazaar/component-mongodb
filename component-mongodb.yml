@@ -1,7 +1,7 @@
 ##Mongodb
 application:
   configuration:
-    configuration.recipe-url: "https://s3.amazonaws.com/qubell-starter-kit-artifacts/qubell-bazaar/component-mongodb-cookbooks-stable-434d09c.tar.gz"
+    configuration.recipe-url: "https://s3.amazonaws.com/qubell-starter-kit-artifacts/qubell-bazaar/component-mongodb-cookbooks-stable-08b5570.tar.gz"
     configuration.image: { ami: "us-east-1/ami-bf5021d6", user: "root" }
     configuration.image-hardware: t1.micro
     configuration.quantity: 1
