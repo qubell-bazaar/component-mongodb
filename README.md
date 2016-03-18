@@ -5,7 +5,7 @@ Install and configure Mongodb standalone or replicaset
 Version 1.0-38p
 ---------------
 
-[![Install](https://raw.github.com/qubell-bazaar/component-skeleton/master/img/install.png)](https://express.qubell.com/applications/upload?metadataUrl=https://raw.github.com/qubell-bazaar/component-mongodb/1.0-38p/meta.yml)
+[![Install](https://raw.github.com/qubell-bazaar/component-skeleton/master/img/install.png)](https://express.tonomi.com/applications/upload?metadataUrl=https://raw.github.com/qubell-bazaar/component-mongodb/1.0-38p/meta.yml)
 
 
 Features
